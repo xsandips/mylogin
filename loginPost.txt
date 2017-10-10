@@ -1,0 +1,180 @@
+(function () {
+    'use strict';
+
+    angular
+        .module('cloudlex.user')
+        .factory('loginDatalayer', loginDatalayer);
+
+    loginDatalayer.$inject = ["$http", "$q", "loginConstants", "clxKeepSessionAlive"];
+
+    function loginDatalayer($http, $q, loginConstants, keepSessionAlive) {
+
+        var loginFactory = {};
+
+        loginFactory.authenticateUser = function (data, token) {
+            if (angular.isDefined(token)) {
+                data['ref_token'] = token;
+            }
+
+            var deferred = $q.defer();
+            $http({
+                url: loginConstants.RESTAPI.authenticate,
+                method: "POST",
+                data: $.param(data),
+                withCredentials: true,
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            }).success(function (response, status, headers, config) {
+                deferred.resolve(response, status);
+                setLogoutTime();
+
+            }).error(function (ee, status, headers, config) {
+                deferred.reject(status);
+            });
+
+            return deferred.promise;
+        }
+
+
+         loginFactory.validateCaptcha = function (data) {          
+
+            var deferred = $q.defer();
+                        $http({
+                            url: "https://www.google.com/recaptcha/api/siteverify",
+                            method: "post",
+                            data: $.param(data),
+                        }).success(function (response) {
+                            console.log("i am called ",response)
+                            deferred.resolve(response);
+                        }).error(function (ee, status, headers, config) {
+                            deferred.resolve(ee);
+                        });
+
+                        return deferred.promise;
+          
+        }
+
+        
+        // login authenticate of java service API
+        loginFactory.authenticateJavaService = function (data) {
+            var deferred = $q.defer();
+            $http.post(loginConstants.RESTAPI.javaLogin, data)
+                .then(function (response) {
+                    deferred.resolve(response.data);
+                }, function (error) {
+                    deferred.reject(error);
+                });
+
+            return deferred.promise;
+        }
+
+        // user details java service call
+        loginFactory.userDetails = function (token, uid) {
+            var deferred = $q.defer();
+            var url = loginConstants.RESTAPI.userDetails;
+            $http({
+                url: url,
+                method: "GET",
+                headers: token, // Add params into headers
+                withCredentials: true
+            }).success(function (response) {
+                deferred.resolve(response);
+            }).error(function (ee, status, headers, config) {
+                deferred.resolve(ee);
+            });
+            return deferred.promise;
+        }
+
+        // refresh token java service call
+        loginFactory.refreshToken = function (token) {
+            var deferred = $q.defer();
+            $http.post(loginConstants.RESTAPI.refreshToken, token)
+                .then(function (response) {
+                    deferred.resolve(response.data);
+                }, function (error) {
+                    deferred.reject(error);
+                });
+            return deferred.promise;
+        }
+
+        loginFactory.setLogoutTime = setLogoutTime;
+
+        function setLogoutTime() {
+            $http.get(loginConstants.RESTAPI.logoutTime).then(
+                    function (response) {
+                        var logoutTime = parseInt(response.data.autologout_time);
+                        keepSessionAlive.setLogoutTime(logoutTime);
+                    });
+        }
+
+        loginFactory.getToken = function (data) {
+            var deferred = $q.defer();
+            $http({
+                url: loginConstants.RESTAPI.token,
+                method: "GET",
+                withCredentials: true
+            }).success(function (response) {
+                deferred.resolve(response);
+            }).error(function (ee, status, headers, config) {
+                deferred.reject(ee);
+            });
+
+            return deferred.promise;
+
+        };
+
+        loginFactory.logoutUser = function () {
+
+            // getting access token of java login user
+            var token = {
+                'access_token': localStorage.getItem('accessToken'),
+                'refresh_token': localStorage.getItem('refreshToken')
+            }
+
+            var deferred = $q.defer();
+            $http({
+                url: loginConstants.RESTAPI.logoutUser,
+                method: "POST",
+                data: $.param(token),
+                withCredentials: true,
+                headers: {
+                    'Content-Type': 'application/json;'
+                }
+            }).success(function (response, status, headers, config) {
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                deferred.resolve(response);
+            }).error(function (ee, status, headers, config) {
+                deferred.reject(ee);
+            });
+
+            return deferred.promise;
+        };
+
+        return loginFactory;
+    }
+})();
+
+
+//loginFactory.logoutUser = function (data) {
+//    console.log(environmentService.Session.getSessionId());
+//    var deferred = $q.defer();
+//    $http({
+//        url: restUrls.Content.LoginManager._logout,
+//        method: "POST",
+//        withCredentials: true,
+//        headers: {
+//            'X-XSRF-TOKEN': environmentService.Session.getSessionId(),
+//            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+
+//        }
+//    }).success(function (response, status, headers, config) {
+//        deferred.resolve(response);
+//    }).error(function (ee, status, headers, config) {
+//        deferred.reject(ee);
+//    });
+
+//    return deferred.promise;
+
+//};
